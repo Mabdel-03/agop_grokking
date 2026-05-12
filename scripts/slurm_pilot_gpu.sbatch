@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=agop-smoke
+#SBATCH --job-name=agop-pilot
 #SBATCH --partition=ou_bcs_low
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
-#SBATCH --time=00:30:00
-#SBATCH --output=results/slurm/agop_smoke_%j.out
-#SBATCH --error=results/slurm/agop_smoke_%j.err
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=24:00:00
+#SBATCH --output=results/slurm/agop_pilot_%j.out
+#SBATCH --error=results/slurm/agop_pilot_%j.err
 
 set -euo pipefail
 
@@ -24,6 +24,7 @@ if torch.cuda.is_available():
     print("cuda_name", torch.cuda.get_device_name(0))
 PY
 
-python run_experiment.py --config configs/smoke.yaml --device cuda --no_progress
-python analyze_results.py --results_dir results/smoke
+python -m py_compile run_experiment.py analyze_results.py src/*.py scripts/*.py
+python run_experiment.py --config configs/pilot.yaml --device cuda --no_progress
+python scripts/generate_manifests.py --best_config results/pilot/best_config.yaml
 echo "Finished at $(date)"

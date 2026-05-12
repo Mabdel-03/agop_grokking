@@ -68,3 +68,11 @@ def make_model(
         raise ValueError(f"Unknown model_type={model_type!r}")
     init_scaled_normal(model, init_scale=init_scale)
     return model
+
+
+def freeze_first_layer(model: nn.Module) -> None:
+    """Freeze the first linear layer for fixed-feature ablations."""
+    if not hasattr(model, "linear1"):
+        raise ValueError("freeze_first_layer requires a model with a linear1 module")
+    for param in model.linear1.parameters():
+        param.requires_grad_(False)

@@ -25,7 +25,7 @@ from .fourier import (
     validate_fourier,
 )
 from .metrics import evaluate_loss_acc, first_crossing, make_checkpoint_steps, parameter_l2_norm
-from .models import make_model
+from .models import freeze_first_layer, make_model
 from .ntk import compute_correct_logit_ntk, ntk_relative_drift
 from .utils import ensure_dir, get_git_hash, save_json, save_yaml, select_device, set_seed
 
@@ -38,10 +38,11 @@ def _config_value(cfg: dict[str, Any], key: str, default: Any) -> Any:
 
 
 def _make_run_id(cfg: dict[str, Any], seed: int, prefix: str = "run") -> str:
+    freeze_tag = "_frozen1" if bool(cfg.get("freeze_first_layer", False)) else ""
     return (
         f"{prefix}_seed{seed}_p{cfg['p']}_tf{cfg['train_fraction']}_"
         f"{cfg['model_type']}_w{cfg['hidden_width']}_lr{cfg['lr']}_"
-        f"wd{cfg['weight_decay']}_init{cfg['init_scale']}"
+        f"wd{cfg['weight_decay']}_init{cfg['init_scale']}{freeze_tag}"
     ).replace(".", "p")
 
 
@@ -114,6 +115,7 @@ def compute_checkpoint_metrics(
         "p": int(cfg["p"]),
         "train_fraction": float(cfg["train_fraction"]),
         "model_type": cfg["model_type"],
+        "freeze_first_layer": bool(cfg.get("freeze_first_layer", False)),
         "hidden_width": int(cfg["hidden_width"]),
         "lr": float(cfg["lr"]),
         "weight_decay": float(cfg["weight_decay"]),
@@ -215,8 +217,13 @@ def run_single_experiment(
         float(cfg["init_scale"]),
         int(seed),
     ).to(device)
+    if bool(cfg.get("freeze_first_layer", False)):
+        freeze_first_layer(model)
+    trainable_params = [param for param in model.parameters() if param.requires_grad]
+    if not trainable_params:
+        raise ValueError("No trainable parameters remain after applying freeze settings")
     optimizer = torch.optim.AdamW(
-        model.parameters(),
+        trainable_params,
         lr=float(cfg["lr"]),
         weight_decay=float(cfg["weight_decay"]),
     )
@@ -259,6 +266,9 @@ def run_single_experiment(
             "valid_fourier_K": valid_K,
             "agop_probe_size_resolved": int(len(X_agop_probe)),
             "ntk_probe_size_resolved": int(len(X_ntk_probe)),
+            "freeze_first_layer": bool(cfg.get("freeze_first_layer", False)),
+            "n_trainable_parameters": int(sum(param.numel() for param in trainable_params)),
+            "n_total_parameters": int(sum(param.numel() for param in model.parameters())),
         }
     )
     save_yaml(resolved, run_dir / "config_resolved.yaml")
@@ -443,6 +453,7 @@ def _run_candidate(
         progress=progress,
     )
     summary.update({k: cfg[k] for k in ["p", "train_fraction", "model_type", "hidden_width", "lr", "weight_decay", "init_scale", "max_steps"]})
+    summary["freeze_first_layer"] = bool(cfg.get("freeze_first_layer", False))
     summary["config_id"] = config_id
     return summary
 

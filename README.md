@@ -50,6 +50,26 @@ SLURM GPU smoke test:
 sbatch scripts/slurm_smoke_gpu.sbatch
 ```
 
+Paper-suite GPU workflow:
+
+```bash
+sbatch scripts/slurm_pilot_gpu.sbatch
+python scripts/generate_manifests.py --best_config results/pilot/best_config.yaml
+sbatch scripts/slurm_main_gpu.sbatch
+N=$(python - <<'PY'
+import csv
+with open("results/manifests/array_manifest.csv", newline="", encoding="utf-8") as f:
+    print(sum(1 for _ in csv.DictReader(f)) - 1)
+PY
+)
+sbatch --array=0-${N} scripts/slurm_ablation_gpu.sbatch
+sbatch scripts/slurm_analyze_gpu.sbatch
+```
+
+The manifest job writes exact main, sensitivity, and ablation configs under
+`results/manifests/`. The frozen-feature ablation is enabled with
+`freeze_first_layer: true`.
+
 ## Outputs
 
 Each run writes:

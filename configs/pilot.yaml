@@ -1,0 +1,59 @@
+mode: pilot
+results_dir: results/pilot
+
+base:
+  train_fraction: 0.4
+  model_type: quadratic
+  max_steps: 20000
+  seeds: [0]
+  batch_size: full
+  checkpoint_preset: pilot
+  compute_agop: false
+  compute_ntk: false
+  save_final_model: false
+  agop_batch_size: 128
+  agop_probe_size: 1024
+  agop_exact_p_max: 47
+  ntk_probe_size: 64
+  fourier_K: [1, 2, 4, 8, 16]
+  random_alignment: true
+
+stage1:
+  max_steps: 8000
+  keep_top: 24
+  checkpoint_preset: pilot_scout
+  compute_agop: false
+  compute_ntk: false
+
+stage2:
+  max_steps: 20000
+  keep_top: 8
+  checkpoint_preset: pilot
+  compute_agop: false
+  compute_ntk: false
+
+stage3:
+  checkpoint_preset: pilot_metrics
+  compute_agop: true
+  compute_ntk: true
+
+grid:
+  p: [31, 47]
+  train_fraction: [0.3, 0.4, 0.5]
+  hidden_width: [128, 256]
+  lr: [0.001, 0.003, 0.01]
+  weight_decay: [0.1, 0.3, 1.0, 3.0]
+  init_scale: [0.3, 0.7, 1.0]
+  model_type: [quadratic]
+
+fallback:
+  enabled: true
+  max_steps: 100000
+  checkpoint_preset: pilot
+  p: [31]
+  train_fraction: [0.5]
+  hidden_width: [512]
+  lr: [0.001, 0.003]
+  weight_decay: [1.0, 3.0, 10.0]
+  init_scale: [0.7, 1.0]
+  model_type: [quadratic, relu]

@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+results/**
+!results/
+!results/smoke/
+!results/pilot/
+!results/main/
+!results/smoke/.gitkeep
+!results/pilot/.gitkeep
+!results/main/.gitkeep
+
+*.pt
+*.pth

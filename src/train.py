@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 from .agop import compute_input_agop, summarize_agop
-from .data import make_mod_add_dataset, validate_mod_add_dataset
+from .data import make_mod_add_dataset, make_mod_mult_dataset, validate_mod_add_dataset
 from .fourier import (
     alignment_from_agop,
     make_fourier_basis,
@@ -26,7 +26,13 @@ from .fourier import (
 )
 from .metrics import evaluate_loss_acc, first_crossing, make_checkpoint_steps, parameter_l2_norm
 from .models import freeze_first_layer, make_model
-from .ntk import compute_correct_logit_ntk, ntk_relative_drift
+from .neural_collapse import vcr_diagnostics
+from .ntk import (
+    compute_block_backward_gram,
+    compute_block_forward_gram,
+    compute_correct_logit_ntk,
+    ntk_relative_drift,
+)
 from .utils import ensure_dir, get_git_hash, save_json, save_yaml, select_device, set_seed
 
 
@@ -77,10 +83,14 @@ def _make_ntk_probe(
 
 def run_correctness_checks(run_dir: Path, p: int, X_full: torch.Tensor, y_full: torch.Tensor, meta: dict[str, Any]) -> None:
     messages = []
-    messages.extend(validate_mod_add_dataset(X_full, y_full, meta))
-    valid_K = valid_fourier_K(p, [1, 2, 4, 8, 16])
+    if meta.get("task", "mod_add") == "mod_add":
+        messages.extend(validate_mod_add_dataset(X_full, y_full, meta))
+    else:
+        messages.append(f"task={meta.get('task')}, p={meta.get('p')}, m={meta.get('m')}, primitive_root={meta.get('primitive_root')}")
+    m = int(meta.get("m", p))
+    valid_K = valid_fourier_K(p, [1, 2, 4, 8, 16], m=m)
     if valid_K:
-        messages.extend(validate_fourier(p, valid_K[0]))
+        messages.extend(validate_fourier(p, valid_K[0], m=m))
     with open(run_dir / "checks.log", "w", encoding="utf-8") as f:
         for msg in messages:
             f.write(msg + "\n")
@@ -105,7 +115,10 @@ def compute_checkpoint_metrics(
     fourier_Q: dict[int, torch.Tensor],
     random_P: dict[int, torch.Tensor],
     K0_ntk: torch.Tensor | None,
+    state: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]], torch.Tensor | None]:
+    if state is None:
+        state = {}
     train_loss, train_acc = evaluate_loss_acc(model, X_train, y_train, device)
     test_loss, test_acc = evaluate_loss_acc(model, X_test, y_test, device)
     weight_norm = parameter_l2_norm(model)
@@ -138,6 +151,7 @@ def compute_checkpoint_metrics(
             batch_size=int(cfg.get("agop_batch_size", 128)),
             device=device,
         )
+        state["last_A"] = A
         fourier_dims = {K: Q.shape[1] for K, Q in fourier_Q.items()}
         agop_summary, evals = summarize_agop(A, fourier_dims=fourier_dims)
         row.update(agop_summary)
@@ -172,6 +186,36 @@ def compute_checkpoint_metrics(
     else:
         row["ntk_drift_correct_logit"] = float("nan")
 
+    if bool(cfg.get("compute_block_ntk", False)) and len(X_ntk_probe) > 0:
+        Bt = compute_block_backward_gram(model, X_ntk_probe, y_ntk_probe, device=device)
+        Gt = compute_block_forward_gram(model, X_ntk_probe, device=device)
+        if state.get("B0") is None:
+            state["B0"] = Bt
+        if state.get("G0") is None:
+            state["G0"] = Gt
+        for name in Bt:
+            safe = name.replace(".", "_")
+            row[f"b_drift_{safe}"] = ntk_relative_drift(Bt[name], state["B0"][name])
+        for name in Gt:
+            safe = name.replace(".", "_")
+            row[f"g_drift_{safe}"] = ntk_relative_drift(Gt[name], state["G0"][name])
+
+    if bool(cfg.get("compute_vcr", False)):
+        A_for_vcr = state.get("last_A")
+        if A_for_vcr is not None:
+            vcr_rs = tuple(int(r) for r in cfg.get("vcr_rs", [4, 8]))
+            vcr = vcr_diagnostics(
+                model,
+                X_test,
+                y_test,
+                A_for_vcr,
+                n_classes=int(cfg["p"]) if cfg.get("task", "mod_add") == "mod_add" else (int(cfg["p"]) - 1),
+                seed=int(seed),
+                device=device,
+                rs=vcr_rs,
+            )
+            row.update(vcr)
+
     return row, spectra_rows, K0_ntk
 
 
@@ -193,11 +237,20 @@ def run_single_experiment(
     run_id = _make_run_id(cfg, seed, prefix=run_prefix)
     run_dir = ensure_dir(results_dir / (run_subdir or f"run_seed{seed}"))
 
-    X_train, y_train, X_test, y_test, X_full, y_full, meta = make_mod_add_dataset(
-        int(cfg["p"]),
-        float(cfg["train_fraction"]),
-        int(seed),
-    )
+    task = str(cfg.get("task", "mod_add"))
+    if task == "mod_mult":
+        X_train, y_train, X_test, y_test, X_full, y_full, meta = make_mod_mult_dataset(
+            int(cfg["p"]),
+            float(cfg["train_fraction"]),
+            int(seed),
+        )
+    else:
+        X_train, y_train, X_test, y_test, X_full, y_full, meta = make_mod_add_dataset(
+            int(cfg["p"]),
+            float(cfg["train_fraction"]),
+            int(seed),
+        )
+    fourier_modulus = int(meta.get("m", int(cfg["p"])))
     np.savez(
         run_dir / "split_indices.npz",
         train_indices=meta["train_indices"],
@@ -208,7 +261,7 @@ def run_single_experiment(
         run_correctness_checks(run_dir, int(cfg["p"]), X_full, y_full, meta)
 
     input_dim = X_full.shape[1]
-    output_dim = int(cfg["p"])
+    output_dim = int(fourier_modulus)
     model = make_model(
         cfg.get("model_type", "quadratic"),
         input_dim,
@@ -232,10 +285,10 @@ def run_single_experiment(
 
     p = int(cfg["p"])
     requested_K = cfg.get("fourier_K", [1, 2, 4, 8, 16])
-    valid_K = valid_fourier_K(p, requested_K)
-    fourier_Q = {K: make_fourier_basis(p, K)[0] for K in valid_K}
+    valid_K = valid_fourier_K(p, requested_K, m=fourier_modulus)
+    fourier_Q = {K: make_fourier_basis(p, K, m=fourier_modulus)[0] for K in valid_K}
     random_P = {
-        K: make_random_basis(2 * p, fourier_Q[K].shape[1], seed=seed + 1000 + K)[1]
+        K: make_random_basis(2 * fourier_modulus, fourier_Q[K].shape[1], seed=seed + 1000 + K)[1]
         for K in valid_K
     }
 
@@ -277,6 +330,7 @@ def run_single_experiment(
     metrics_rows: list[dict[str, Any]] = []
     spectra_rows: list[dict[str, Any]] = []
     K0_ntk = None
+    state: dict[str, Any] = {}
     start_time = time.time()
     X_train_d = X_train.to(device)
     y_train_d = y_train.to(device)
@@ -305,6 +359,7 @@ def run_single_experiment(
                 fourier_Q=fourier_Q,
                 random_P=random_P,
                 K0_ntk=K0_ntk,
+                state=state,
             )
             if step == 0:
                 initial_train_loss = row["train_loss"]

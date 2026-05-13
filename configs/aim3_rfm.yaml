@@ -1,0 +1,10 @@
+results_dir: results/aim3_rfm
+
+p: 23
+train_fraction: 0.5
+seeds: [0]
+tasks: [mod_add, mod_mult]
+iters: 12
+L: 10.0
+ridge: 1.0e-3
+fourier_K: [1, 2, 4]

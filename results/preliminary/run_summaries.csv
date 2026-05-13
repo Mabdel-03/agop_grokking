@@ -1,0 +1,4 @@
+max_train_acc,max_test_acc,final_train_acc,final_test_acc,t_train_fit,t_test_90,t_test_95,t_grok,grokking_like,run_id,seed,run_dir,initial_train_loss,final_train_loss
+1.0,0.9937630295753479,1.0,0.987525999546051,40,16000,21000,21000,True,run_seed0_p31_tf0p5_quadratic_w512_lr0p003_wd1p0_init1p0,0,results/asap_main_mit/run_seed0,3.435943841934204,1.3217322702985257e-06
+1.0,0.9646569490432739,1.0,0.9646569490432739,40,21000,24000,30000,True,run_seed1_p31_tf0p5_quadratic_w512_lr0p003_wd1p0_init1p0,1,results/asap_main_mit/run_seed1,3.436361074447632,1.411884340996039e-06
+1.0,1.0,1.0,0.9937630295753479,40,21000,26000,26000,True,run_seed2_p31_tf0p5_quadratic_w512_lr0p003_wd1p0_init1p0,2,results/asap_main_mit/run_seed2,3.4345786571502686,1.3162684808776248e-06

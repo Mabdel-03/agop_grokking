@@ -1,17 +1,28 @@
+# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
-results/**
-!results/
-!results/smoke/
-!results/pilot/
-!results/main/
-!results/smoke/.gitkeep
-!results/pilot/.gitkeep
-!results/main/.gitkeep
-
+# Model checkpoints
 *.pt
 *.pth
+
+# Build outputs of paper-table / paper-figure scripts
+paper_out/
+
+# Slurm logs
+results/slurm/
+
+# Heavy per-checkpoint artifacts; we commit only the small summaries
+# (run_summaries.csv, lead_times.csv, summary.md, *.yaml).
+results/**/metrics.csv
+results/**/metrics_all.csv
+results/**/agop_spectra.csv
+results/**/agop_spectra_all.csv
+results/**/split_indices.npz
+results/**/checks.log
+results/**/plots/
+results/**/*.pt
+results/**/*.pth

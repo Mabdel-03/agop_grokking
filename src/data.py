@@ -72,6 +72,89 @@ def make_mod_add_dataset(
     return X_train, y_train, X_test, y_test, X_full, y_full, meta
 
 
+def find_primitive_root(p: int) -> int:
+    """Return the smallest primitive root g of Z_p^* for prime p."""
+    if p < 3:
+        raise ValueError(f"primitive root requires prime p >= 3, got {p}")
+    phi = p - 1
+    factors = []
+    n = phi
+    f = 2
+    while f * f <= n:
+        if n % f == 0:
+            factors.append(f)
+            while n % f == 0:
+                n //= f
+        f += 1
+    if n > 1:
+        factors.append(n)
+    for g in range(2, p):
+        if all(pow(g, phi // q, p) != 1 for q in factors):
+            return g
+    raise RuntimeError(f"no primitive root found for p={p}")
+
+
+def make_mod_mult_dataset(
+    p: int,
+    train_fraction: float,
+    seed: int,
+) -> tuple[
+    torch.FloatTensor,
+    torch.LongTensor,
+    torch.FloatTensor,
+    torch.LongTensor,
+    torch.FloatTensor,
+    torch.LongTensor,
+    dict[str, Any],
+]:
+    """Modular multiplication on Z_p^* in discrete-log coordinates."""
+    if p < 3:
+        raise ValueError(f"p must be prime and >=3, got {p}")
+    if not 0.0 < train_fraction < 1.0:
+        raise ValueError(f"train_fraction must be in (0,1), got {train_fraction}")
+    g = find_primitive_root(p)
+    m = p - 1
+    log_g = np.zeros(p, dtype=np.int64)
+    for u in range(m):
+        log_g[pow(g, u, p)] = u
+    pairs = np.array([(a, b) for a in range(1, p) for b in range(1, p)], dtype=np.int64)
+    u_a = log_g[pairs[:, 0]]
+    u_b = log_g[pairs[:, 1]]
+    y_np = ((u_a + u_b) % m).astype(np.int64)
+    n = pairs.shape[0]
+    X_np = np.zeros((n, 2 * m), dtype=np.float32)
+    rows = np.arange(n)
+    X_np[rows, u_a] = 1.0
+    X_np[rows, m + u_b] = 1.0
+
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(n)
+    n_train = int(round(train_fraction * n))
+    n_train = min(max(n_train, 1), n - 1)
+    train_idx = np.sort(perm[:n_train])
+    test_idx = np.sort(perm[n_train:])
+
+    X_full = torch.from_numpy(X_np).float()
+    y_full = torch.from_numpy(y_np).long()
+    X_train = X_full[torch.from_numpy(train_idx).long()]
+    y_train = y_full[torch.from_numpy(train_idx).long()]
+    X_test = X_full[torch.from_numpy(test_idx).long()]
+    y_test = y_full[torch.from_numpy(test_idx).long()]
+
+    meta = {
+        "p": int(p),
+        "m": int(m),
+        "primitive_root": int(g),
+        "train_fraction": float(train_fraction),
+        "seed": int(seed),
+        "train_indices": train_idx,
+        "test_indices": test_idx,
+        "pairs": pairs,
+        "task": "mod_mult",
+    }
+    return X_train, y_train, X_test, y_test, X_full, y_full, meta
+
+
 def validate_mod_add_dataset(
     X_full: torch.Tensor,
     y_full: torch.Tensor,

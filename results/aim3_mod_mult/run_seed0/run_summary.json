@@ -1,0 +1,16 @@
+{
+  "final_test_acc": 0.9800000190734863,
+  "final_train_acc": 1.0,
+  "final_train_loss": 1.4930290035408689e-06,
+  "grokking_like": true,
+  "initial_train_loss": 3.4055755138397217,
+  "max_test_acc": 0.9933333396911621,
+  "max_train_acc": 1.0,
+  "run_dir": "results/aim3_mod_mult/run_seed0",
+  "run_id": "run_seed0_p31_tf0p5_quadratic_w512_lr0p003_wd1p0_init1p0",
+  "seed": 0,
+  "t_grok": 36000,
+  "t_test_90": 20000,
+  "t_test_95": 36000,
+  "t_train_fit": 50
+}

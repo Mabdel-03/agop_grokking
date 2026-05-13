@@ -1,0 +1,16 @@
+{
+  "final_test_acc": 0.9937630295753479,
+  "final_train_acc": 1.0,
+  "final_train_loss": 1.3162684808776248e-06,
+  "grokking_like": true,
+  "initial_train_loss": 3.4345786571502686,
+  "max_test_acc": 1.0,
+  "max_train_acc": 1.0,
+  "run_dir": "results/asap_main_mit/run_seed2",
+  "run_id": "run_seed2_p31_tf0p5_quadratic_w512_lr0p003_wd1p0_init1p0",
+  "seed": 2,
+  "t_grok": 26000,
+  "t_test_90": 21000,
+  "t_test_95": 26000,
+  "t_train_fit": 40
+}

@@ -116,16 +116,20 @@ def compute_lead_times(metrics: pd.DataFrame) -> pd.DataFrame:
     metric_cols = []
     metric_cols.extend([c for c in metrics.columns if c.startswith("align_K")])
     metric_cols.extend([c for c in metrics.columns if c.startswith("random_align_K")])
+    metric_cols.extend([c for c in metrics.columns if c.startswith("b_drift_")])
+    metric_cols.extend([c for c in metrics.columns if c.startswith("g_drift_")])
+    metric_cols.extend([c for c in metrics.columns if c.startswith("vcr_")])
     for col in ["log_weight_norm", "ntk_drift_correct_logit", "train_loss"]:
         if col in metrics.columns:
             metric_cols.append(col)
     metric_cols = list(dict.fromkeys(metric_cols))
+    decreasing_set = {c for c in metric_cols if c.startswith("vcr_") or c == "train_loss"}
 
     for (run_id, seed), df in metrics.groupby(["run_id", "seed"], dropna=False):
         df = df.sort_values("step").reset_index(drop=True)
         t_train_fit, t_grok = _transition_times(df)
         for col in metric_cols:
-            decreasing = col == "train_loss"
+            decreasing = col in decreasing_set
             for frac in (0.5, 0.8):
                 rows.append(
                     _lead_row(

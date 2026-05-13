@@ -1,0 +1,2 @@
+max_train_acc,max_test_acc,final_train_acc,final_test_acc,t_train_fit,t_test_90,t_test_95,t_grok,grokking_like,run_id,seed,run_dir,initial_train_loss,final_train_loss
+1.0,0.9933333396911621,1.0,0.9800000190734863,50,20000,36000,36000,True,run_seed0_p31_tf0p5_quadratic_w512_lr0p003_wd1p0_init1p0,0,results/aim3_mod_mult/run_seed0,3.4055755138397217,1.4930290035408689e-06
